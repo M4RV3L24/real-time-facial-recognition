@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+main.ipynb
+train_age.ipynb
+
 # C extensions
 *.so
 

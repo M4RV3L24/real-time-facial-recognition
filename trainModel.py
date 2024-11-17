@@ -17,7 +17,8 @@ dataset = tf.keras.utils.image_dataset_from_directory(
     labels="inferred",       # Automatically label based on folder names
     label_mode="int",        # Labels as integers (can also use 'categorical' or 'binary')
     image_size=(224, 224),   # Resize images to a standard size
-    batch_size=16            # Batch size for training
+    batch_size=16,            # Batch size for training
+    shuffle=True,            # Shuffle the dataset
 )
 #  Number of classes
 class_names = dataset.class_names
@@ -75,7 +76,7 @@ model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=
 #adding checkpoint
 from tensorflow.keras.callbacks import ModelCheckpoint
 checkpoint = ModelCheckpoint('model/best_model.keras', monitor='val_accuracy', save_best_only=True, verbose=1)
-# early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True, verbose=1)
+early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True, verbose=1)
 
 # train only the last layer
 model.fit(train_ds, epochs=10, batch_size=16, validation_data=val_ds, callbacks=[checkpoint], class_weight=class_weights)
@@ -84,7 +85,7 @@ model.fit(train_ds, epochs=10, batch_size=16, validation_data=val_ds, callbacks=
 base_model.trainable = True
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-history = model.fit(train_ds, epochs=50, batch_size=16, validation_data=val_ds, callbacks=[checkpoint], class_weight=class_weights)
+history = model.fit(train_ds, epochs=50, batch_size=16, validation_data=val_ds, callbacks=[checkpoint, early_stopping], class_weight=class_weights)
 
 # Save the training history
 with open('model/training_history.json', 'w') as f:

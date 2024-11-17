@@ -1,3 +1,7 @@
-deepface
 opencv-python
+tensorflow
+numpy
+matplotlib
+pandas
+scikit-learn
 
