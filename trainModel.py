@@ -5,6 +5,8 @@ from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from sklearn.utils.class_weight import compute_class_weight
 import os
+import numpy as np
+import json
 
 # Set dataset directory
 dataset_dir = "dataset"
@@ -48,7 +50,7 @@ val_ds = val_ds.prefetch(buffer_size=tf.data.AUTOTUNE)
 # Compute class weights for imbalanced datasets
 class_weights = compute_class_weight(
     class_weight='balanced',
-    classes=range(num_classes),
+    classes=np.array(range(num_classes)),
     y=[label.numpy() for _, label in dataset.unbatch()]
 )
 class_weights = dict(enumerate(class_weights))
@@ -73,18 +75,22 @@ model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=
 #adding checkpoint
 from tensorflow.keras.callbacks import ModelCheckpoint
 checkpoint = ModelCheckpoint('model/best_model.keras', monitor='val_accuracy', save_best_only=True, verbose=1)
-early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True, verbose=1)
+# early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True, verbose=1)
 
 # train only the last layer
-model.fit(train_ds, epochs=10, batch_size=16, validation_data=val_ds, callbacks=[checkpoint, early_stopping], class_weight=class_weights)
+model.fit(train_ds, epochs=10, batch_size=16, validation_data=val_ds, callbacks=[checkpoint], class_weight=class_weights)
 
 # unfreeze layers
 base_model.trainable = True
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-model.fit(train_ds, epochs=50, batch_size=16, validation_data=val_ds, callbacks=[checkpoint, early_stopping], class_weight=class_weights)
+history = model.fit(train_ds, epochs=50, batch_size=16, validation_data=val_ds, callbacks=[checkpoint], class_weight=class_weights)
 
-# evaluate accuracy
+# Save the training history
+with open('model/training_history.json', 'w') as f:
+    json.dump(history.history, f)
+
+
 # Evaluate accuracy on validation data
 val_loss, val_accuracy = model.evaluate(val_ds)
 print(f"Validation Accuracy: {val_accuracy * 100:.2f}%")

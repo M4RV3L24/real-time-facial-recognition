@@ -1,54 +1,68 @@
-from keras.models import load_model  # TensorFlow is required for Keras to work
-import cv2  # Install opencv-python
 import numpy as np
+from keras.models import load_model  # TensorFlow is required for Keras to work
+import cv2 as cv
+import matplotlib.pyplot as plt
+
+video = cv.VideoCapture(0)
+face_detect = cv.CascadeClassifier('utility/haarcascade_frontalface_default.xml')
+
+model = load_model("model/mobilenet_finetuned_final.keras", compile=False)
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
 
-# Load the model
-model = load_model("model/mobilenet_finetuned_final.keras", compile=False)
+video.set(3, 640)
+video.set(4, 480)
 
 # Load the labels
 class_names = open("label.txt", "r").readlines()
 print(class_names)
 
-# CAMERA can be 0 or 1 based on default camera of your computer
-camera = cv2.VideoCapture(0)
-camera.set(3, 640)
-camera.set(4, 480)
-
+i = 0
+best_score = 0
 while True:
-    # Grab the webcamera's image.
-    ret, image = camera.read()
+    ret, frame = video.read()
+    frame = cv.flip(frame, 1)
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    faces = face_detect.detectMultiScale(gray, 1.3, 5, minSize=(50, 50))
+    for (x, y, w, h) in faces:
+        crop_image = frame[y:y+h, x:x+w]
+        crop_image = cv.resize(crop_image, (224, 224), interpolation=cv.INTER_AREA)
 
-    # Resize the raw image into (224-height,224-width) pixels
-    image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
+        # Make the image a numpy array and reshape it to the models input shape.
+        crop_image = np.asarray(crop_image, dtype=np.float32).reshape(1, 224, 224, 3)
 
-    # Show the image in a window
-    cv2.imshow("Webcam Image", image)
+        # Normalize the image array
+        crop_image = (crop_image / 127.5) - 1
+        
+        # Predicts the model
+        prediction = model.predict(crop_image)
+        index = np.argmax(prediction)
+        class_name = class_names[index]
+        confidence_score = prediction[0][index]
 
-    # Make the image a numpy array and reshape it to the models input shape.
-    image = np.asarray(image, dtype=np.float32).reshape(1, 224, 224, 3)
+        # Print prediction and confidence score
+        print("Class:", class_name, end="")
+        print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
 
-    # Normalize the image array
-    image = (image / 127.5) - 1
+        if confidence_score < 0.5:
+            class_name = "unknown"
+            confidence_score = 1 - confidence_score
+        else:
+            confidence_score = confidence_score
 
-    # Predicts the model
-    prediction = model.predict(image)
-    index = np.argmax(prediction)
-    class_name = class_names[index]
-    confidence_score = prediction[0][index]
 
-    # Print prediction and confidence score
-    print("Class:", class_name[2:], end="")
-    print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
-
-    # Listen to the keyboard for presses.
-    keyboard_input = cv2.waitKey(1)
-
-    # 27 is the ASCII for the esc key on your keyboard.
-    if keyboard_input == 27:
+        # adding rectangle and text on the frame
+        cv.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        cv.rectangle(frame, (x, y-40), (x+w, y), (0,255,0), -1)
+        cv.putText(frame, class_name+" - "+ str(np.round(confidence_score * 100))[:-2] + "%", (x, y-15), cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1)
+        best_score = max(best_score, confidence_score)
+    
+    cv.imshow('frame', frame)
+    k = cv.waitKey(1)
+    if k == ord('q'):
         break
 
-camera.release()
-cv2.destroyAllWindows()
+print('Best Score: ', np.round(best_score * 100))
+video.release()
+cv.destroyAllWindows()
