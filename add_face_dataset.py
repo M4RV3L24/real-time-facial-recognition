@@ -24,7 +24,7 @@ while True:
         cv.imshow("Face", gray_image)
 
         if cv.waitKey(1) & 0xFF == ord('q'):
-            cv.imwrite(f"dataset/marvel/face_{i}.jpg", gray_image)
+            cv.imwrite(f"dataset/gilbert/face_{i}.jpg", gray_image)
             i += 1
 
     if cv.waitKey(1) & 0xff == 27:

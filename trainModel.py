@@ -7,6 +7,7 @@ from sklearn.utils.class_weight import compute_class_weight
 import os
 import numpy as np
 import json
+import matplotlib.pyplot as plt
 
 # Set dataset directory
 dataset_dir = "dataset"
@@ -40,19 +41,16 @@ val_ds = val_ds.prefetch(buffer_size=tf.data.AUTOTUNE)
 # Apply data augmentation
 augment = tf.keras.Sequential([
     tf.keras.layers.RandomFlip("horizontal"),
-    tf.keras.layers.RandomRotation(0.2)
+    tf.keras.layers.RandomRotation(0.2),
 ])
 train_ds = train_ds.map(lambda x, y: (augment(x), y))
 
-# Optimize data loading
-train_ds = train_ds.prefetch(buffer_size=tf.data.AUTOTUNE)
-val_ds = val_ds.prefetch(buffer_size=tf.data.AUTOTUNE)
 
 # Compute class weights for imbalanced datasets
 class_weights = compute_class_weight(
     class_weight='balanced',
     classes=np.array(range(num_classes)),
-    y=[label.numpy() for _, label in dataset.unbatch()]
+    y=[label.numpy() for _, label in train_ds.unbatch()]
 )
 class_weights = dict(enumerate(class_weights))
 print(f"Class weights: {class_weights}")
@@ -63,38 +61,73 @@ base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224
 
 base_model.trainable = False
 
-#Add new layer
-x = base_model.output
+inputs = tf.keras.Input(shape=(224, 224, 3))
+x = base_model(inputs, training=False)
 x = GlobalAveragePooling2D()(x)
-x = Dense(1024, activation='relu')(x)
+from tensorflow.keras.regularizers import l2
+x = Dense(1024, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
 predictions = Dense(num_classes, activation='softmax')(x)
-
-model = Model(inputs=base_model.input, outputs=predictions)
-
+model = Model(inputs=inputs, outputs=predictions)
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 #adding checkpoint
 from tensorflow.keras.callbacks import ModelCheckpoint
-checkpoint = ModelCheckpoint('model/best_model.keras', monitor='val_accuracy', save_best_only=True, verbose=1)
-early_stopping = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True, verbose=1)
+checkpoint = ModelCheckpoint('model/best_model.keras', monitor='val_loss', save_best_only=True, verbose=1)
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
+
+# Learning rate scheduler as a lambda function
+lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-5 * 0.9 ** (epoch // 10), verbose=1)
+
+initial_epochs = 10
 
 # train only the last layer
-model.fit(train_ds, epochs=10, batch_size=16, validation_data=val_ds, callbacks=[checkpoint], class_weight=class_weights)
+history = model.fit(train_ds, epochs=initial_epochs, validation_data=val_ds, callbacks=[checkpoint,early_stopping], class_weight=class_weights) #class_weight=class_weights
+
+acc = history.history['accuracy']
+val_acc = history.history['val_accuracy']
+
+loss = history.history['loss']
+val_loss = history.history['val_loss']
 
 # unfreeze layers
 base_model.trainable = True
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-history = model.fit(train_ds, epochs=50, batch_size=16, validation_data=val_ds, callbacks=[checkpoint, early_stopping], class_weight=class_weights)
+# Fine-tune from this layer onwards
+fine_tune_at = 140
+
+# Freeze all the layers before the `fine_tune_at` layer
+for layer in base_model.layers[:fine_tune_at]:
+    layer.trainable = False
+
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history_fine = model.fit(train_ds, epochs=75, initial_epoch=len(history.epoch)
+                        , validation_data=val_ds, callbacks=[lr_scheduler, checkpoint, early_stopping], class_weight=class_weights) #class_weight=class_weights
 
 # Save the training history
 with open('model/training_history.json', 'w') as f:
-    json.dump(history.history, f)
-
+    json.dump(history_fine.history, f)
 
 # Evaluate accuracy on validation data
-val_loss, val_accuracy = model.evaluate(val_ds)
-print(f"Validation Accuracy: {val_accuracy * 100:.2f}%")
+model_loss, model_accuracy = model.evaluate(val_ds)
+print(f"Validation Accuracy: {model_accuracy * 100:.2f}%")
+
+acc += history_fine.history['accuracy']
+val_acc += history_fine.history['val_accuracy']
+
+loss += history_fine.history['loss']
+val_loss += history_fine.history['val_loss']
 
 # Save the final model
 model.save('model/mobilenet_finetuned_final.keras')
+
+total_epochs = len(history.epoch) + len(history_fine.epoch)
+# Combine the histories
+combined_history = {
+    'accuracy': acc,
+    'val_accuracy': val_acc,
+    'loss': loss,
+    'val_loss': val_loss,
+    'initial_epochs': len(history.epoch)
+}
+with open('model/training_history.json', 'w') as f:
+    json.dump(combined_history, f)

@@ -5,30 +5,31 @@ import matplotlib.pyplot as plt
 import json
 
 # show model graph
-model = load_model("model/mobilenet_finetuned_final.keras", compile=False)
-model.summary()
+# model = load_model("model/mobilenet_finetuned_final.keras", compile=False)
+# model.summary()
 
 
 # Load the training history
 with open('model/training_history.json', 'r') as f:
     history = json.load(f)
 
-# Plot training & validation accuracy values
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
 plt.plot(history['accuracy'], label='Training Accuracy')
 plt.plot(history['val_accuracy'], label='Validation Accuracy')
-plt.title('Model Accuracy')
-plt.ylabel('Accuracy')
-plt.xlabel('Epoch')
-plt.legend(loc='upper left')
-plt.show()
+plt.ylim([0.8, 1])
+plt.plot([history['initial_epochs']-1,history['initial_epochs']-1],
+          plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='lower right')
+plt.title('Training and Validation Accuracy')
 
-# Plot training & validation loss values
-plt.figure(figsize=(12, 6))
+plt.subplot(2, 1, 2)
 plt.plot(history['loss'], label='Training Loss')
 plt.plot(history['val_loss'], label='Validation Loss')
-plt.title('Model Loss')
-plt.ylabel('Loss')
-plt.xlabel('Epoch')
-plt.legend(loc='upper left')
+plt.ylim([0, 1.0])
+plt.plot([history['initial_epochs']-1,history['initial_epochs']-1],
+         plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='upper right')
+plt.title('Training and Validation Loss')
+plt.xlabel('epoch')
 plt.show()
