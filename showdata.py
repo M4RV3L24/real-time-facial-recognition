@@ -18,11 +18,18 @@ train_dataset = tf.keras.utils.image_dataset_from_directory(
     image_size=(224, 224),   # Resize images to a standard size
     batch_size=16,            # Batch size for training
     shuffle=True,            # Shuffle the dataset
+    color_mode="grayscale",        # Color images
 )
 #  Number of classes
 class_names = train_dataset.class_names
 num_classes = len(class_names)
 
+# Convert grayscale images to RGB
+def convert_to_rgb(image, label):
+    image = tf.image.grayscale_to_rgb(image)
+    return image, label
+
+train_dataset = train_dataset.map(convert_to_rgb)
 
 plt.figure(figsize=(10, 10))
 for images, labels in train_dataset.take(1):

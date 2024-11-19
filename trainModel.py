@@ -20,10 +20,20 @@ dataset = tf.keras.utils.image_dataset_from_directory(
     image_size=(224, 224),   # Resize images to a standard size
     batch_size=16,            # Batch size for training
     shuffle=True,            # Shuffle the dataset
+    color_mode="grayscale",        # Color images
 )
+
+
 #  Number of classes
 class_names = dataset.class_names
 num_classes = len(class_names)
+
+# Convert grayscale images to RGB
+def convert_to_rgb(image, label):
+    image = tf.image.grayscale_to_rgb(image)
+    return image, label
+
+dataset = dataset.map(convert_to_rgb)
 
 # Normalize images to [-1, 1] for MobileNetV2
 normalize = tf.keras.layers.Rescaling(1./127.5, offset=-1)
