@@ -15,7 +15,7 @@ def preprocess (image):
     
     return crop_image
 
-image_paths = glob.glob('dataset/nico/*.jpg')
+image_paths = glob.glob('marvel.jpeg')
 images = [cv.imread(file) for file in image_paths]
 process_images = [preprocess(image) for image in images]
 
