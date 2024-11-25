@@ -1,5 +1,4 @@
 import numpy as np
-from keras.models import load_model  # TensorFlow is required for Keras to work
 import cv2 as cv
 import matplotlib.pyplot as plt
 import glob
@@ -16,7 +15,7 @@ def preprocess (image):
     
     return crop_image
 
-image_paths = glob.glob('dataset/ivan/*.jpg')
+image_paths = glob.glob('dataset/nico/*.jpg')
 images = [cv.imread(file) for file in image_paths]
 process_images = [preprocess(image) for image in images]
 

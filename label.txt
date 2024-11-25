@@ -2,3 +2,5 @@ aurum
 dillan
 ivan
 marvel
+nico
+timothy

@@ -1,13 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-from sklearn.utils.class_weight import compute_class_weight
-import os
-import numpy as np
-import json
+from tensorflow.keras.layers import RandomFlip, RandomRotation, RandomZoom, RandomContrast, GaussianNoise
 from matplotlib import pyplot as plt
+import datetime
 
 # Load the dataset
 dataset_dir = "dataset"
@@ -31,12 +25,44 @@ def convert_to_rgb(image, label):
 
 train_dataset = train_dataset.map(convert_to_rgb)
 
-plt.figure(figsize=(10, 10))
-for images, labels in train_dataset.take(1):
-  for i in range(min(9,len(images))):
-    ax = plt.subplot(3, 3, i + 1)
-    plt.imshow(images[i].numpy().astype("uint8"))
-    plt.title(class_names[labels[i]])
-    plt.axis("off")
+# Normalize images to [-1, 1] for MobileNetV2
+normalize = tf.keras.layers.Rescaling(1./255, offset=0)
+train_dataset = train_dataset.map(lambda x, y: (normalize(x), y))
 
-plt.show()
+# Apply data augmentation
+augment = tf.keras.Sequential([
+    RandomFlip("horizontal"),
+    RandomRotation(0.1),
+    RandomZoom(0.1),
+    RandomContrast(0.1),
+    GaussianNoise(0.05),
+])
+
+# Create a summary writer
+log_dir = "logs/augmented_data/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+file_writer = tf.summary.create_file_writer(log_dir)
+
+# Log augmented images to TensorBoard
+def log_augmented_images(dataset, augment, file_writer):
+    with file_writer.as_default():
+        for images, labels in dataset.take(1):
+            augmented_images = augment(images)
+            # Rescale images to [0, 255]
+            # augmented_images = tf.clip_by_value(augmented_images * 255, 0, 255)
+            tf.summary.image("Augmented Images", augmented_images, max_outputs=100, step=0)
+
+log_augmented_images(train_dataset, augment, file_writer)
+
+
+
+
+
+# plt.figure(figsize=(10, 10))
+# for images, labels in train_dataset.take(1):
+#   for i in range(min(9,len(images))):
+#     ax = plt.subplot(3, 3, i + 1)
+#     plt.imshow(images[i].numpy().astype("uint8"))
+#     plt.title(class_names[labels[i]])
+#     plt.axis("off")
+
+# plt.show()

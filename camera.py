@@ -81,6 +81,8 @@ while True:
         ret, frame = video.read()
         frame = cv.flip(frame, 1)
         process_frame(frame)
+        # threading.Thread(target=process_frame, args=(frame.copy(),)).start()
+    
     
     if processed_frame is not None:
         # Get the current size of the window
